@@ -17,25 +17,44 @@
 import SwiftUI
 import GoogleSignIn
 
+
 @main
 struct DaysUntilBirthday: App {
   @StateObject var authViewModel = AuthenticationViewModel()
+
+  // Simple counter used to match up completion invocations.
+  struct Counter {
+    private var count : Int = 0
+    mutating func claim() -> Int {
+      let current = count
+      count += 1
+      return current
+    }
+  }
+  static var counter = Counter()
+  func restore() {
+    let count = DaysUntilBirthday.counter.claim()
+    print("\(count): Restoring")
+    GIDSignIn.sharedInstance.restorePreviousSignIn() { user, error in
+      print("\(count): Done: \(user), \(error)")
+      if let user = user {
+        self.authViewModel.state = .signedIn(user)
+      } else if let error = error {
+        self.authViewModel.state = .signedOut
+        print("There was an error restoring the previous sign-in: \(error)")
+      } else {
+        self.authViewModel.state = .signedOut
+      }
+    }
+  }
 
   var body: some Scene {
     WindowGroup {
       ContentView()
         .environmentObject(authViewModel)
         .onAppear {
-          GIDSignIn.sharedInstance.restorePreviousSignIn { user, error in
-            if let user = user {
-              self.authViewModel.state = .signedIn(user)
-            } else if let error = error {
-              self.authViewModel.state = .signedOut
-              print("There was an error restoring the previous sign-in: \(error)")
-            } else {
-              self.authViewModel.state = .signedOut
-            }
-          }
+          restore()
+          restore()
         }
         .onOpenURL { url in
           GIDSignIn.sharedInstance.handle(url)
